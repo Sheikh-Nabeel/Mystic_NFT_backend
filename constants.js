@@ -1,1 +1,1 @@
-export const DB_NAME='DREAM_NFT'
+export const DB_NAME='MysticNft'
