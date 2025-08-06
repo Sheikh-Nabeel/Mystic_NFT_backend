@@ -560,7 +560,7 @@ export const enable2FA = asynchandler(async (req, res) => {
   if (!user) throw new apierror(404, "User not found");
 
   const secret = speakeasy.generateSecret({
-    name: `DreamNFT (${user.email})`
+    name: `MysticNft (${user.email})`
   });
 
   user.twoFASecret = secret.base32;
@@ -786,7 +786,7 @@ export const initiateEnable2FA = asynchandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) throw new apierror(404, "User not found");
     // Generate secret for Google Authenticator
-    const secret = speakeasy.generateSecret({ name: `DreamNFT (${user.email})` });
+    const secret = speakeasy.generateSecret({ name: `MysticNft (${user.email})` });
     // Generate QR code
     const qrCodeImage = await qrcode.toDataURL(secret.otpauth_url);
     // Store secret in EmailVerification for this user (use email as key)

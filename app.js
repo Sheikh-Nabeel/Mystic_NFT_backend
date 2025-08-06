@@ -12,6 +12,8 @@ import rewardrouter from './Routes/reward.routes.js'
 import bannerouter from './Routes/banner.routes.js'
 import historyrouter from './Routes/history.routes.js'
 import emailVerificationRouter from './Routes/emailVerification.routes.js'
+import stakerouter from './Routes/stake.routes.js'
+import adminStakerouter from './Routes/adminStake.routes.js'
  
 const app=express()
 
@@ -52,6 +54,8 @@ app.use('/api/v1/reward',rewardrouter)
 app.use('/api/v1/banner',bannerouter)
 app.use('/api/v1/history',historyrouter)
 app.use('/api/v1/email-verification',emailVerificationRouter)
+app.use('/api/v1/stake',stakerouter)
+app.use('/api/v1/admin/stake',adminStakerouter)
  
 app.get('/',(req,res)=>{
     res.send("Welcome to the API")

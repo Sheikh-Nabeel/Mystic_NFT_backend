@@ -23,7 +23,7 @@ export async function sendemailverification(email, otp, subject, html) {
   }
   try {
     const response = await transporter.sendMail({
-      from: `"Mystic_NFT" <${process.env.USER_SENDER_EMAIL}>`, // Sender address
+      from: `"Dream_NFT" <${process.env.USER_SENDER_EMAIL}>`, // Sender address
       ...mailOptions,
     });
 

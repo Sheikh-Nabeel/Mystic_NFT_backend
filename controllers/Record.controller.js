@@ -10,6 +10,8 @@ import { DailyOrderLog } from "../models/dailyorderlog.model.js";
 import { Reward } from "../models/reward.model.js";
 import { Deposit } from "../models/deposit.model.js";
 import { History } from "../models/history.model.js";
+import { Stake } from "../models/stake.model.js";
+import { UserNFT } from "../models/userNFT.model.js";
 
 
 export const getTeamMemberStats = asynchandler(async (req, res) => {
@@ -400,6 +402,22 @@ export const getUserEarningSummary = asynchandler(async (req, res) => {
     }
   }
 
+  // Stake income calculation
+  let dailyStakeIncome = 0;
+  let totalStakeIncome = 0;
+  
+  // Get all stakes that have been claimed (completed and auto-sold)
+  const claimedStakes = await Stake.find({ userId: user._id, profitClaimed: true });
+  for (const stake of claimedStakes) {
+    const totalAccumulatedProfit = stake.getTotalAccumulatedProfit();
+    totalStakeIncome += totalAccumulatedProfit;
+    
+    // Check if stake was completed today
+    if (stake.stakeEndDate >= todayStart && stake.stakeEndDate <= todayEnd) {
+      dailyStakeIncome += totalAccumulatedProfit;
+    }
+  }
+
   // --- Optimized Referral Profit Calculation ---
   function getDownlineUserIds(team) {
     return (team || []).filter(m => m.validmember).map(m => m.userid);
@@ -464,8 +482,8 @@ export const getUserEarningSummary = asynchandler(async (req, res) => {
   const dailyReferralProfit = a.today + b.today + c.today;
   const totalReferralProfit = a.total + b.total + c.total;
 
-  const dailyTotal = dailyNFTProfit + dailyReferralProfit +activityToday;
-  const totalEarning = totalNFTProfit + totalReferralProfit +activityTotal;
+  const dailyTotal = dailyNFTProfit + dailyReferralProfit + activityToday + dailyStakeIncome;
+  const totalEarning = totalNFTProfit + totalReferralProfit + activityTotal + totalStakeIncome;
 
   // Calculate activity (admin rewards)
 
@@ -481,6 +499,10 @@ export const getUserEarningSummary = asynchandler(async (req, res) => {
       nft: {
         today: dailyNFTProfit,
         total: totalNFTProfit,
+      },
+      stake: {
+        today: dailyStakeIncome,
+        total: totalStakeIncome,
       },
       referral: {
         today: dailyReferralProfit,
@@ -867,11 +889,27 @@ export async function syncUserAccountAmount(userId) {
   const referralBonusTotal = referralBonuses.reduce((sum, r) => sum + (r.amount || 0), 0);
   const activityTotal = rewards.reduce((sum, r) => sum + (r.amount || 0), 0) + referralBonusTotal;
   
-  // NFT profits
+  // NFT profits (from reservations)
   const reservations = await Reservation.find({ userid: user._id, status: "sold" });
   let totalNFTProfit = 0;
   for (const resv of reservations) {
     totalNFTProfit += resv.profit || 0;
+  }
+  
+  // NFT staking profits (from completed and claimed stakes)
+  const claimedStakes = await Stake.find({ userId: user._id, profitClaimed: true });
+  let totalStakingProfit = 0;
+  for (const stake of claimedStakes) {
+    totalStakingProfit += stake.getTotalAccumulatedProfit();
+  }
+  
+  // NFT selling profits (from UserNFT - manual sales)
+  const soldNFTs = await UserNFT.find({ userId: user._id, status: "sold" });
+  let totalNFTSellingProfit = 0;
+  for (const userNFT of soldNFTs) {
+    if (userNFT.soldPrice && userNFT.purchasePrice) {
+      totalNFTSellingProfit += (userNFT.soldPrice - userNFT.purchasePrice);
+    }
   }
   
   // Referral profits
@@ -901,7 +939,7 @@ export async function syncUserAccountAmount(userId) {
   const c = sumProfits(cResvs, 0.06);
   
   // Total calculated earnings
-  const totalCalculated = depositTotal + registrationBonusTotal + activityTotal + totalNFTProfit + a + b + c;
+  const totalCalculated = depositTotal + registrationBonusTotal + activityTotal + totalNFTProfit + totalStakingProfit + totalNFTSellingProfit + a + b + c;
   
   // 2. Get all withdrawals that affect the balance
   const allWithdrawals = await Withdraw.find({ userid: user._id });
@@ -936,6 +974,9 @@ export async function syncUserAccountAmount(userId) {
     netWithdrawalEffect,
     totalWithdrawn: netWithdrawalEffect,
     registrationBonusTotal,
+    totalNFTProfit,
+    totalStakingProfit,
+    totalNFTSellingProfit,
     calculatedBalance, // Show the raw calculated balance before applying Math.max
     message: Math.abs(adjustment) > 0.0001 ? 'Account amount synced.' : 'No adjustment needed.'
   };

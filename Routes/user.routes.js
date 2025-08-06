@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {  block_unblockuser, deleteuser, delunverifiedusers,distributeProfitsForUser,adjustLevelsForUser,adjustTeamsForUser, forgotpassword, getallusers, login ,logout,registeruser, resendforgotpassotp, resendotp, updateprofile, verifyemail, verifyforgetpassotp,editamount, enable2FA, updateProfilePicture, sendChangePasswordOTP, changePasswordWithOTP, grantMissingRegistrationBonuses, sendEmailChangeOTP, verifyEmailChangeOTP, updateUserProfileFields, initiateEnable2FA, confirmEnable2FA, bindWallet, getWalletBindingStatus, getusernamebyreferralcode, requestWalletChange, confirmWalletChange } from "../controllers/user.controller.js";
+import { calculateDailyProfits, autoCompleteStakesBackground } from "../controllers/stake.controller.js";
 import {upload}from '../middelwares/multer.middelware.js'
 import {verifyjwt}from '../middelwares/auth.middelware.js'
 // import { referralQueue } from "../referralQueue.js";
@@ -60,6 +61,8 @@ router.route('/me').get(verifyjwt, async (req, res) => {
         retryTask(() => adjustLevelsForUser(userId), 'AdjustLevels',3);
         retryTask(() => distributeProfitsForUser(userId), 'DistributeReferralProfits', 3);
         retryTask(()=>syncUserAccountAmount(userId),'accountsync',3)
+        retryTask(() => calculateDailyProfits(userId), 'CalculateDailyProfits', 3);
+        retryTask(() => autoCompleteStakesBackground(userId), 'AutoCompleteStakes', 3);
     });
 
 });
