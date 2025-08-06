@@ -18,7 +18,7 @@ import adminStakerouter from './Routes/adminStake.routes.js'
 const app=express()
 
 app.use(express.json())
-const allowedOrigins = ["https://dreamnfts.com", "https://dasboard.dreamnfts.com","http://localhost:5173","http://localhost:5174"];
+const allowedOrigins = ["https://mystick.online", "https://dasboard.dreamnfts.com","http://localhost:5173","http://localhost:5174"];
 
 app.use(
     cors({
