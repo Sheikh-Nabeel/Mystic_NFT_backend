@@ -6,7 +6,8 @@ import {
     getUserStakes,
     getActiveStakes,
     getCompletedStakes,
-    getStakeStats
+    getStakeStats,
+    testStakeConfig
 } from "../controllers/stake.controller.js";
 import { verifyjwt } from "../middelwares/auth.middelware.js";
 
@@ -35,5 +36,8 @@ router.get("/completed", getCompletedStakes);
 
 // Get stake statistics
 router.get("/stats", getStakeStats);
+
+// Test endpoint to verify stake configuration
+router.get("/test-config", testStakeConfig);
 
 export default router; 

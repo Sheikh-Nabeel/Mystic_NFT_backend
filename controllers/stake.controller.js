@@ -38,7 +38,7 @@ const getQualifiedNFTs = asynchandler(async (req, res) => {
         throw new apierror(400, "User level not eligible for free zone staking");
     }
     
-    // Generate 15 random NFTs with prices based on user's balance and stake range
+    // Generate 15 random NFTs with prices based on stake range
     const nfts = [];
     const userBalance = user.amount;
     const stakeMinAmount = stakeConfig.minAmount;
@@ -53,17 +53,15 @@ const getQualifiedNFTs = asynchandler(async (req, res) => {
         throw new apierror(404, "No NFTs available in database");
     }
     
-    // Determine price range based on user's balance and stake range
-    let priceRange;
+    // Always use the stake range from configuration, regardless of user balance
+    const priceRange = { 
+        min: stakeConfig.minAmount, 
+        max: stakeConfig.maxAmount 
+    };
     
-    if (userBalance < stakeMinAmount) {
-        // User can't afford minimum stake, create affordable options within their balance
-        const affordableMin = Math.max(1, Math.floor(userBalance * 0.2)); // 20% of balance
-        const affordableMax = Math.floor(userBalance * 0.8); // 80% of balance
-        priceRange = { min: affordableMin, max: affordableMax, type: 'affordable' };
-    } else {
-        // User can afford the stake range - use the actual stake range from configuration
-        priceRange = { min: stakeMinAmount, max: stakeMaxAmount, type: 'normal' };
+    // Validate that we have a valid price range
+    if (priceRange.min >= priceRange.max) {
+        throw new apierror(400, "Invalid stake configuration: min amount must be less than max amount");
     }
     
     // Generate varied prices within the range
@@ -105,8 +103,7 @@ const getQualifiedNFTs = asynchandler(async (req, res) => {
             price: price,
             dailyProfit: stakeConfig.dailyProfit,
             minPeriod: stakeConfig.minPeriod,
-            maxPeriod: stakeConfig.maxPeriod,
-            isAffordable: priceRange.type === 'affordable'
+            maxPeriod: stakeConfig.maxPeriod
         });
     }
     
@@ -128,11 +125,11 @@ const getQualifiedNFTs = asynchandler(async (req, res) => {
             priceRange: {
                 actualMin: priceRange.min,
                 actualMax: priceRange.max,
-                type: priceRange.type,
                 userBalance: userBalance,
                 stakeMinAmount: stakeMinAmount,
                 stakeMaxAmount: stakeMaxAmount,
-                range: priceRange.max - priceRange.min
+                range: priceRange.max - priceRange.min,
+                note: "Prices are based on stake range configuration, not user balance"
             }
         }, "Qualified NFTs retrieved successfully")
     );
@@ -386,6 +383,31 @@ const getCompletedStakes = asynchandler(async (req, res) => {
     );
 });
 
+// Test endpoint to verify stake configuration
+const testStakeConfig = asynchandler(async (req, res) => {
+    const { stakeType, stakeNo } = req.query;
+    
+    if (!stakeType || !stakeNo) {
+        throw new apierror(400, "Stake type and stake number are required");
+    }
+    
+    const config = Stake.getStakeConfig();
+    const stakeConfig = config[stakeType]?.stakes[stakeNo];
+    
+    if (!stakeConfig) {
+        throw new apierror(400, "Invalid stake configuration");
+    }
+    
+    res.status(200).json(
+        new apiresponse(200, {
+            stakeType,
+            stakeNo,
+            stakeConfig,
+            fullConfig: config
+        }, "Stake configuration retrieved successfully")
+    );
+});
+
 // Get stake statistics
 const getStakeStats = asynchandler(async (req, res) => {
     const userId = req.user._id;
@@ -502,5 +524,6 @@ export {
     getUserStakes,
     getActiveStakes,
     getCompletedStakes,
-    getStakeStats
+    getStakeStats,
+    testStakeConfig
 }; 
