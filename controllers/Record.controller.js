@@ -165,17 +165,27 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
     userMap.set(user._id.toString(), user);
   });
 
-  // Helper to get member info from the map
+  // Helper to get member info from the map with date filtering
   function getMembersInfo(team) {
     return team.map(member => {
       const memberUser = userMap.get(member.userid.toString());
       if (!memberUser) return null;
       
+      const joinDate = memberUser.createdAt ? memberUser.createdAt.toISOString().slice(0, 10) : null;
+      
+      // Apply date filtering
+      if (startDate && joinDate < startDate.toISOString().slice(0, 10)) {
+        return null; // Skip members before start date
+      }
+      if (endDate && joinDate > endDate.toISOString().slice(0, 10)) {
+        return null; // Skip members after end date
+      }
+      
       return {
         email: maskEmail(memberUser.email),
         valid: !!member.validmember,
         joinedAt: formatDate(memberUser.createdAt),
-        joinDate: memberUser.createdAt ? memberUser.createdAt.toISOString().slice(0, 10) : null
+        joinDate: joinDate
       };
     }).filter(Boolean); // Remove null entries
   }
@@ -260,15 +270,15 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
     };
   }
 
-  // Calculate team totals
-  const team_A_total = teamA.length;
-  const team_A_valid = teamA.filter(member => member.validmember).length;
+  // Calculate team totals based on filtered date range
+  const team_A_total = teamAInfo.length;
+  const team_A_valid = teamAInfo.filter(member => member.valid).length;
 
-  const team_B_total = teamB.length;
-  const team_B_valid = teamB.filter(member => member.validmember).length;
+  const team_B_total = teamBInfo.length;
+  const team_B_valid = teamBInfo.filter(member => member.valid).length;
 
-  const team_C_total = teamC.length;
-  const team_C_valid = teamC.filter(member => member.validmember).length;
+  const team_C_total = teamCInfo.length;
+  const team_C_valid = teamCInfo.filter(member => member.valid).length;
 
   const total_registered = team_A_total + team_B_total + team_C_total;
   const total_valid = team_A_valid + team_B_valid + team_C_valid;
