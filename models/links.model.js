@@ -9,6 +9,10 @@ const linkSchema = new Schema({
     t_helplinelink:{
         type: String,
         required: true,
+    },
+    t_groupLink:{
+        type: String,
+        required: true,
     }
 
  },{timestamps:true})
