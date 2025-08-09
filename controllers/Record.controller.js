@@ -208,6 +208,43 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
     getMembersInfo(teamC)
   ];
 
+  // Also get ALL members (unfiltered) for comparison
+  const [teamAAll, teamBAll, teamCAll] = [
+    teamA.map(member => {
+      const memberUser = userMap.get(member.userid.toString());
+      if (!memberUser) return null;
+      
+      return {
+        email: maskEmail(memberUser.email),
+        valid: !!member.validmember,
+        joinedAt: formatDate(memberUser.createdAt),
+        joinDate: memberUser.createdAt ? memberUser.createdAt.toISOString().slice(0, 10) : null
+      };
+    }).filter(Boolean),
+    teamB.map(member => {
+      const memberUser = userMap.get(member.userid.toString());
+      if (!memberUser) return null;
+      
+      return {
+        email: maskEmail(memberUser.email),
+        valid: !!member.validmember,
+        joinedAt: formatDate(memberUser.createdAt),
+        joinDate: memberUser.createdAt ? memberUser.createdAt.toISOString().slice(0, 10) : null
+      };
+    }).filter(Boolean),
+    teamC.map(member => {
+      const memberUser = userMap.get(member.userid.toString());
+      if (!memberUser) return null;
+      
+      return {
+        email: maskEmail(memberUser.email),
+        valid: !!member.validmember,
+        joinedAt: formatDate(memberUser.createdAt),
+        joinDate: memberUser.createdAt ? memberUser.createdAt.toISOString().slice(0, 10) : null
+      };
+    }).filter(Boolean)
+  ];
+
   // --- Date-wise cumulative summary ---
   // Gather all join dates
   const allDatesSet = new Set([
@@ -283,6 +320,19 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
   const total_registered = team_A_total + team_B_total + team_C_total;
   const total_valid = team_A_valid + team_B_valid + team_C_valid;
 
+  // Calculate ALL members totals (unfiltered)
+  const team_A_all_total = teamAAll.length;
+  const team_A_all_valid = teamAAll.filter(member => member.valid).length;
+
+  const team_B_all_total = teamBAll.length;
+  const team_B_all_valid = teamBAll.filter(member => member.valid).length;
+
+  const team_C_all_total = teamCAll.length;
+  const team_C_all_valid = teamCAll.filter(member => member.valid).length;
+
+  const total_all_registered = team_A_all_total + team_B_all_total + team_C_all_total;
+  const total_all_valid = team_A_all_valid + team_B_all_valid + team_C_all_valid;
+
   // Date-wise counts
   const teamA_dateCounts = getDateCounts(teamAInfo);
   const teamB_dateCounts = getDateCounts(teamBInfo);
@@ -291,22 +341,30 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
   const stats = {
     total_registered,
     total_valid,
+    total_all_registered,
+    total_all_valid,
     dateSummary,
     team_A: {
       total: team_A_total,
       valid: team_A_valid,
+      all_total: team_A_all_total,
+      all_valid: team_A_all_valid,
       members: teamAInfo,
       dateCounts: teamA_dateCounts
     },
     team_B: {
       total: team_B_total,
       valid: team_B_valid,
+      all_total: team_B_all_total,
+      all_valid: team_B_all_valid,
       members: teamBInfo,
       dateCounts: teamB_dateCounts
     },
     team_C: {
       total: team_C_total,
       valid: team_C_valid,
+      all_total: team_C_all_total,
+      all_valid: team_C_all_valid,
       members: teamCInfo,
       dateCounts: teamC_dateCounts
     }
