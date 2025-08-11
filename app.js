@@ -14,6 +14,7 @@ import historyrouter from './Routes/history.routes.js'
 import emailVerificationRouter from './Routes/emailVerification.routes.js'
 import stakerouter from './Routes/stake.routes.js'
 import adminStakerouter from './Routes/adminStake.routes.js'
+import pdfrouter from './Routes/pdf.routes.js'
  
 const app=express()
 
@@ -56,6 +57,7 @@ app.use('/api/v1/history',historyrouter)
 app.use('/api/v1/email-verification',emailVerificationRouter)
 app.use('/api/v1/stake',stakerouter)
 app.use('/api/v1/admin/stake',adminStakerouter)
+app.use('/api/v1/pdf',pdfrouter)
  
 app.get('/',(req,res)=>{
     res.send("Welcome to the API")
