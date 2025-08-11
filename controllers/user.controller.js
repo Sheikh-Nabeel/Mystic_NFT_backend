@@ -490,20 +490,27 @@ export const adjustTeamsForUser = async (userId) => {
     const upline = await User.findById(userId);
     if (!upline) return;
 
+    // Only distribute profits if user has level > 1
+    if (upline.level <= 1) return;
+
     const teamTypes = [
-      { team: upline.team_A_members, percent: 0.13 },
-      { team: upline.team_B_members, percent: 0.08 },
-      { team: upline.team_C_members, percent: 0.06 }
+      { team: upline.team_A_members, percent: 0.13, type: "A" },
+      { team: upline.team_B_members, percent: 0.08, type: "B" },
+      { team: upline.team_C_members, percent: 0.06, type: "C" }
     ];
 
     let totalCommission = 0;
 
-    for (const { team, percent } of teamTypes) {
+    for (const { team, percent, type } of teamTypes) {
       for (const member of team) {
-        // Find all sold reservations for this member
+        // Only process valid members
+        if (!member.validmember) continue;
+        
+        // Find all sold reservations for this member that haven't been processed for team income
         const reservations = await Reservation.find({
           userid: member.userid,
-          status: "sold"
+          status: "sold",
+          referralProfitDistributed: false
         });
 
         for (const reservation of reservations) {
@@ -513,13 +520,17 @@ export const adjustTeamsForUser = async (userId) => {
             reservationId: reservation._id
           });
           if (exists || !reservation.profit) continue;
+          
           const commission = reservation.profit * percent;
           totalCommission += commission;
+          
+          // Create referral profit log
           await ReferralProfitLog.create({
             uplineUser: userId,
             downlineUser: member.userid,
             reservationId: reservation._id,
             date: new Date(),
+            teamType: type,
             profit: reservation.profit,
             percentage: percent,
             commission
