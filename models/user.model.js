@@ -4,6 +4,13 @@ import jwt from 'jsonwebtoken';
 
 const userSchema = new Schema({
    
+    uid: {
+        type: String,
+        required: true,
+        unique: true, // Ensure uniqueness
+        minlength: 6,
+        maxlength: 6
+    },
     email: {
         type: String,
         
@@ -146,6 +153,7 @@ userSchema.methods.generateaccesstoken= function(){
         username:this.username,
         role:this.role,
         level:this.level,
+        uid:this.uid,
     }
 ,process.env.ACCESS_TOKEN_SECRET,{expiresIn:process.env.ACCES_TOKEN_EXPIRY})
 }

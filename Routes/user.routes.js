@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {  block_unblockuser, deleteuser, delunverifiedusers,distributeProfitsForUser,adjustLevelsForUser,adjustTeamsForUser, forgotpassword, getallusers, login ,logout,registeruser, resendforgotpassotp, resendotp, updateprofile, verifyemail, verifyforgetpassotp,editamount, enable2FA, updateProfilePicture, sendChangePasswordOTP, changePasswordWithOTP, grantMissingRegistrationBonuses, sendEmailChangeOTP, verifyEmailChangeOTP, updateUserProfileFields, initiateEnable2FA, confirmEnable2FA, bindWallet, getWalletBindingStatus, getusernamebyreferralcode, requestWalletChange, confirmWalletChange } from "../controllers/user.controller.js";
+import {  block_unblockuser, deleteuser, delunverifiedusers,distributeProfitsForUser,adjustLevelsForUser,adjustTeamsForUser, forgotpassword, getallusers, login ,logout,registeruser, resendforgotpassotp, resendotp, updateprofile, verifyemail, verifyforgetpassotp,editamount, enable2FA, updateProfilePicture, sendChangePasswordOTP, changePasswordWithOTP, grantMissingRegistrationBonuses, sendEmailChangeOTP, verifyEmailChangeOTP, updateUserProfileFields, initiateEnable2FA, confirmEnable2FA, bindWallet, getWalletBindingStatus, getusernamebyreferralcode, getUserByUID, checkUIDExists, getUserInfoByUID, requestWalletChange, confirmWalletChange } from "../controllers/user.controller.js";
 import { calculateDailyProfits, autoCompleteStakesBackground } from "../controllers/stake.controller.js";
 import {upload}from '../middelwares/multer.middelware.js'
 import {verifyjwt}from '../middelwares/auth.middelware.js'
@@ -81,6 +81,9 @@ router.post('/request-wallet-change', verifyjwt, requestWalletChange);
 router.post('/confirm-wallet-change', verifyjwt, confirmWalletChange);
  
 router.route('/getusernamebyreferralcode').post(getusernamebyreferralcode)
+router.route('/uid/:uid').get(getUserByUID)
+router.route('/uid/:uid/check').get(checkUIDExists)
+router.route('/uid/:uid/info').get(getUserInfoByUID)
 
 // Add debug, sync, and admin grant routes
 router.get('/earning-debug', verifyjwt, getUserEarningDebug);

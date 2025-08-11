@@ -14,6 +14,35 @@ import qrcode from "qrcode";
 import { passwordChangeOTPTemplate } from "../libs/email.template.js";
 import { emailChangeOTPTemplate } from "../libs/email.template.js";
 import { walletChangeOTPTemplate } from "../libs/email.template.js";
+// Function to generate unique 6-digit UID
+const generateUniqueUID = async () => {
+    let uid;
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 100; // Prevent infinite loops
+    
+    do {
+        // Generate a random 6-digit number (100000 to 999999)
+        uid = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Ensure it's exactly 6 digits
+        if (uid.length === 6) {
+            // Check if this UID already exists
+            const existingUser = await User.findOne({ uid: uid });
+            if (!existingUser) {
+                isUnique = true;
+            }
+        }
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+            throw new Error('Failed to generate unique UID after maximum attempts');
+        }
+    } while (!isUnique);
+    
+    return uid;
+};
+
 const delunverifiedusers=asynchandler(async(req,res)=>{
 
     const users=await User.deleteMany({verified:false})
@@ -131,8 +160,12 @@ let registeruser = asynchandler(async (req, res) => {
     
 
     try {
+        // Generate unique 6-digit UID
+        const uniqueUID = await generateUniqueUID();
+        
         // Create the user
         user = await User.create({
+            uid: uniqueUID,
             email,
             password,
             username,
@@ -198,23 +231,31 @@ const resendotp = asynchandler(async (req, res) => {
 });
 
 const login = asynchandler(async (req, res) => {
-    const { email, password, username } = req.body;
+    const { email, password, username, uid } = req.body;
 
-    if ((!email && !username) || !password) {
+    if ((!email && !username && !uid) || !password) {
         return res.status(400).json({
             statusCode: 400,
-            message: "Email or username is required, and password is required"
+            message: "Email, username, or UID is required, and password is required"
+        });
+    }
+
+    // Validate UID format if provided
+    if (uid && (uid.length !== 6 || !/^\d{6}$/.test(uid))) {
+        return res.status(400).json({
+            statusCode: 400,
+            message: "UID must be exactly 6 digits"
         });
     }
 
     const user = await User.findOne({
-        $or: [{ email }, { username }]
+        $or: [{ email }, { username }, { uid }]
     });
 
     if (!user) {
         return res.status(404).json({
             statusCode: 404,
-            message: "User does not exist"
+            message: "User does not exist with the provided email, username, or UID"
         });
     }
     if (user.blocked) {
@@ -933,6 +974,66 @@ export  const getusernamebyreferralcode=asynchandler(async(req,res)=>{
     if(!user) throw new apierror(404,"User not found")
     return res.status(200).json(new apiresponse(200,user.username,null,"Username retrieved successfully"))
 })
+
+// Get user by UID
+export const getUserByUID = asynchandler(async (req, res) => {
+    const { uid } = req.params;
+    
+    if (!uid || uid.length !== 6) {
+        throw new apierror(400, "UID must be exactly 6 digits");
+    }
+    
+    const user = await User.findOne({ uid: uid }).select('-password');
+    if (!user) {
+        throw new apierror(404, "User not found with this UID");
+    }
+    
+    return res.status(200).json(
+        new apiresponse(200, user, null, "User retrieved successfully by UID")
+    );
+});
+
+// Check if UID exists
+export const checkUIDExists = asynchandler(async (req, res) => {
+    const { uid } = req.params;
+    
+    if (!uid || uid.length !== 6) {
+        throw new apierror(400, "UID must be exactly 6 digits");
+    }
+    
+    const user = await User.findOne({ uid: uid }).select('_id uid username');
+    const exists = !!user;
+    
+    return res.status(200).json(
+        new apiresponse(200, { 
+            uid, 
+            exists, 
+            user: exists ? user : null 
+        }, null, exists ? "UID exists" : "UID does not exist")
+    );
+});
+
+// Get user info by UID (public endpoint for login forms)
+export const getUserInfoByUID = asynchandler(async (req, res) => {
+    const { uid } = req.params;
+    
+    if (!uid || uid.length !== 6 || !/^\d{6}$/.test(uid)) {
+        throw new apierror(400, "UID must be exactly 6 digits");
+    }
+    
+    const user = await User.findOne({ uid: uid }).select('_id uid username email');
+    if (!user) {
+        throw new apierror(404, "User not found with this UID");
+    }
+    
+    return res.status(200).json(
+        new apiresponse(200, { 
+            uid: user.uid,
+            username: user.username,
+            email: user.email
+        }, null, "User info retrieved successfully")
+    );
+});
 
 // Admin endpoint: Grant registration bonus to users who don't have it
 export const grantMissingRegistrationBonuses = asynchandler(async (req, res) => {
