@@ -265,11 +265,23 @@ const login = asynchandler(async (req, res) => {
         });
     }
 
-    const isPasswordValid = user.password == password;
+    const isPasswordValid = user.password === password;
+    
+    // Debug logging
+    console.log('Login attempt:', { 
+        email: email || 'not provided', 
+        username: username || 'not provided', 
+        uid: uid || 'not provided',
+        storedPassword: user.password,
+        inputPassword: password,
+        passwordMatch: isPasswordValid,
+        passwordType: typeof user.password,
+        inputType: typeof password
+    });
 
     if (!isPasswordValid) {
-        return res.status(404).json({
-            statusCode: 404,
+        return res.status(401).json({
+            statusCode: 401,
             message: "Password is not valid"
         });
     }
@@ -629,7 +641,7 @@ export const enable2FA = asynchandler(async (req, res) => {
 });
 
  
-export { registeruser, verifyemail, login, forgotpassword, verifyforgetpassotp, resendotp,delunverifiedusers,updateprofile,getallusers,deleteuser};
+
 
 export const updateProfilePicture = asynchandler(async (req, res) => {
     const userId = req.user._id;
@@ -1111,3 +1123,39 @@ export const confirmWalletChange = asynchandler(async (req, res) => {
 
   return res.status(200).json(new apiresponse(200, { walletAddress: user.walletAddress }, "Wallet address updated successfully"));
 });
+
+// Debug endpoint to check user data (remove this in production)
+const debugUser = asynchandler(async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({
+            statusCode: 400,
+            message: "Email is required"
+        });
+    }
+    
+    const user = await User.findOne({ email }).select('+password');
+    
+    if (!user) {
+        return res.status(404).json({
+            statusCode: 404,
+            message: "User not found"
+        });
+    }
+    
+    return res.status(200).json({
+        statusCode: 200,
+        data: {
+            email: user.email,
+            username: user.username,
+            uid: user.uid,
+            password: user.password,
+            verified: user.verified,
+            blocked: user.blocked
+        },
+        message: "User data retrieved for debugging"
+    });
+});
+
+export { registeruser, verifyemail, login, forgotpassword, verifyforgetpassotp, resendotp,delunverifiedusers,updateprofile,getallusers,deleteuser, debugUser};

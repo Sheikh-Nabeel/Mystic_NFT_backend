@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {  block_unblockuser, deleteuser, delunverifiedusers,distributeProfitsForUser,adjustLevelsForUser,adjustTeamsForUser, forgotpassword, getallusers, login ,logout,registeruser, resendforgotpassotp, resendotp, updateprofile, verifyemail, verifyforgetpassotp,editamount, enable2FA, updateProfilePicture, sendChangePasswordOTP, changePasswordWithOTP, grantMissingRegistrationBonuses, sendEmailChangeOTP, verifyEmailChangeOTP, updateUserProfileFields, initiateEnable2FA, confirmEnable2FA, bindWallet, getWalletBindingStatus, getusernamebyreferralcode, getUserByUID, checkUIDExists, getUserInfoByUID, requestWalletChange, confirmWalletChange } from "../controllers/user.controller.js";
+import {  block_unblockuser, deleteuser, delunverifiedusers,distributeProfitsForUser,adjustLevelsForUser,adjustTeamsForUser, forgotpassword, getallusers, login ,logout,registeruser, resendforgotpassotp, resendotp, updateprofile, verifyemail, verifyforgetpassotp,editamount, enable2FA, updateProfilePicture, sendChangePasswordOTP, changePasswordWithOTP, grantMissingRegistrationBonuses, sendEmailChangeOTP, verifyEmailChangeOTP, updateUserProfileFields, initiateEnable2FA, confirmEnable2FA, bindWallet, getWalletBindingStatus, getusernamebyreferralcode, getUserByUID, checkUIDExists, getUserInfoByUID, requestWalletChange, confirmWalletChange, debugUser } from "../controllers/user.controller.js";
 import { calculateDailyProfits, autoCompleteStakesBackground } from "../controllers/stake.controller.js";
 import {upload}from '../middelwares/multer.middelware.js'
 import {verifyjwt}from '../middelwares/auth.middelware.js'
@@ -10,6 +10,7 @@ const router=Router()
 
 router.route('/register').post(registeruser)
 router.route('/login').post(login)
+router.route('/debug-user').post(debugUser)
 router.route('/logout').get(logout)
 router.route('/verifyemail').post(verifyemail)
 router.route('/forgetpassword').post(forgotpassword)
