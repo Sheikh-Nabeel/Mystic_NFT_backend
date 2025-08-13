@@ -248,6 +248,11 @@ const login = asynchandler(async (req, res) => {
         });
     }
 
+    // Debug: Log the query being used
+    console.log('Database query:', {
+        $or: [{ email }, { username }, { uid }]
+    });
+    
     const user = await User.findOne({
         $or: [{ email }, { username }, { uid }]
     });
@@ -258,6 +263,27 @@ const login = asynchandler(async (req, res) => {
             message: "User does not exist with the provided email, username, or UID"
         });
     }
+    
+    // Debug: Check if there are multiple users with the same email
+    const allUsersWithEmail = await User.find({ email });
+    console.log('All users with this email:', allUsersWithEmail.map(u => ({
+        _id: u._id,
+        email: u.email,
+        username: u.username,
+        password: u.password
+    })));
+    
+    // Debug: Log the entire user object to see what's being fetched
+    console.log('User fetched from database:', {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        uid: user.uid,
+        password: user.password,
+        verified: user.verified,
+        blocked: user.blocked
+    });
+    
     if (user.blocked) {
         return res.status(403).json({
             statusCode: 403,
