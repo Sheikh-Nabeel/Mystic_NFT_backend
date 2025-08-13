@@ -253,8 +253,16 @@ const login = asynchandler(async (req, res) => {
         $or: [{ email }, { username }, { uid }]
     });
     
+    // Fix the query logic - only include defined values
+    const queryConditions = [];
+    if (email) queryConditions.push({ email });
+    if (username) queryConditions.push({ username });
+    if (uid) queryConditions.push({ uid });
+    
+    console.log('Fixed query conditions:', queryConditions);
+    
     const user = await User.findOne({
-        $or: [{ email }, { username }, { uid }]
+        $or: queryConditions
     });
 
     if (!user) {
@@ -273,6 +281,14 @@ const login = asynchandler(async (req, res) => {
         password: u.password
     })));
     
+    // Debug: Check which field actually matched
+    let matchedField = 'none';
+    if (email && user.email === email) matchedField = 'email';
+    else if (username && user.username === username) matchedField = 'username';
+    else if (uid && user.uid === uid) matchedField = 'uid';
+    
+    console.log('Matched field:', matchedField);
+    
     // Debug: Log the entire user object to see what's being fetched
     console.log('User fetched from database:', {
         _id: user._id,
@@ -281,7 +297,8 @@ const login = asynchandler(async (req, res) => {
         uid: user.uid,
         password: user.password,
         verified: user.verified,
-        blocked: user.blocked
+        blocked: user.blocked,
+        matchedField: matchedField
     });
     
     if (user.blocked) {
