@@ -24,13 +24,42 @@ export const getTeamMemberStats = asynchandler(async (req, res) => {
     const teamB = Array.isArray(user.team_B_members) ? user.team_B_members : [];
     const teamC = Array.isArray(user.team_C_members) ? user.team_C_members : [];
 
-    const validA = teamA.filter(m => m.validmember).length;
-    const validB = teamB.filter(m => m.validmember).length;
-    const validC = teamC.filter(m => m.validmember).length;
+    // Build unique set of member IDs across all teams
+    const allIds = new Set();
+    for (const m of [...teamA, ...teamB, ...teamC]) {
+        if (m && m.userid) allIds.add(m.userid.toString());
+    }
 
-    const totalA = teamA.length;
-    const totalB = teamB.length;
-    const totalC = teamC.length;
+    // Only count members that actually exist in DB (prevents stale/removed users)
+    const existingUsers = await User.find({ _id: { $in: Array.from(allIds) } }).select('_id').lean();
+    const existingSet = new Set(existingUsers.map(u => u._id.toString()));
+
+    // Filter each team to existing users and dedupe by userId
+    function filterAndDedupe(team) {
+        const seen = new Set();
+        const result = [];
+        for (const m of team) {
+            const id = m && m.userid ? m.userid.toString() : null;
+            if (!id) continue;
+            if (!existingSet.has(id)) continue;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            result.push(m);
+        }
+        return result;
+    }
+
+    const teamAFiltered = filterAndDedupe(teamA);
+    const teamBFiltered = filterAndDedupe(teamB);
+    const teamCFiltered = filterAndDedupe(teamC);
+
+    const validA = teamAFiltered.filter(m => m.validmember).length;
+    const validB = teamBFiltered.filter(m => m.validmember).length;
+    const validC = teamCFiltered.filter(m => m.validmember).length;
+
+    const totalA = teamAFiltered.length;
+    const totalB = teamBFiltered.length;
+    const totalC = teamCFiltered.length;
 
     return res.status(200).json(new apiresponse(200, {
         valid_A_members: validA,
@@ -144,9 +173,25 @@ export const getReferralTeamStats = asynchandler(async (req, res) => {
   }
 
   // Optimized: Get all team member IDs and fetch them in one query
-  const teamA = user.team_A_members || [];
-  const teamB = user.team_B_members || [];
-  const teamC = user.team_C_members || [];
+  let teamA = user.team_A_members || [];
+  let teamB = user.team_B_members || [];
+  let teamC = user.team_C_members || [];
+
+  // Dedupe members per team by userid to keep counts consistent across endpoints
+  function dedupeTeam(team) {
+    const seen = new Set();
+    return (team || []).filter(m => {
+      const id = m && m.userid ? m.userid.toString() : null;
+      if (!id) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  teamA = dedupeTeam(teamA);
+  teamB = dedupeTeam(teamB);
+  teamC = dedupeTeam(teamC);
 
   // Collect all unique user IDs from all teams
   const allUserIds = new Set();
@@ -613,10 +658,15 @@ export const getValidMembersIncome = asynchandler(async (req, res) => {
   const user = req.user;
   const { start, end } = req.query;
   let startDate, endDate;
-  if (start) startDate = new Date(start);
+  if (start) {
+    startDate = new Date(start);
+    // Normalize to UTC start of day
+    startDate.setUTCHours(0, 0, 0, 0);
+  }
   if (end) {
     endDate = new Date(end);
-    endDate.setHours(23, 59, 59, 999); // Ensure endDate includes the whole day
+    // Normalize to UTC end of day
+    endDate.setUTCHours(23, 59, 59, 999);
   }
 
   function maskEmail(email) {
@@ -649,43 +699,56 @@ export const getValidMembersIncome = asynchandler(async (req, res) => {
   ];
   const allMemberIds = tierDefs.flatMap(t => t.members.map(m => m.userid));
 
-  // Batch fetch all users
-  const users = await User.find({ _id: { $in: allMemberIds } }).lean();
+  // Batch fetch all users (project only needed fields)
+  const users = await User.find(
+    { _id: { $in: allMemberIds } },
+    'username email createdAt amount'
+  ).lean();
   const userMap = Object.fromEntries(users.map(u => [u._id.toString(), u]));
 
-  // Batch fetch all reservations
-  const reservationQuery = {
-    userid: { $in: allMemberIds },
-    status: "sold"
-  };
+  // Use aggregation to compute per-user total profits (ALL and filtered)
+  const allMatch = { userid: { $in: allMemberIds }, status: 'sold' };
+  const allGrouped = await Reservation.aggregate([
+    { $match: allMatch },
+    { $group: { _id: '$userid', totalProfit: { $sum: { $ifNull: ['$profit', 0] } } } }
+  ]);
+  const allProfitByUser = Object.fromEntries(allGrouped.map(d => [d._id.toString(), d.totalProfit]));
+
+  let filteredProfitByUser = null;
   if (startDate || endDate) {
-    reservationQuery.sellDate = {};
-    if (startDate) reservationQuery.sellDate.$gte = startDate;
-    if (endDate) reservationQuery.sellDate.$lte = endDate;
-  }
-  const reservations = await Reservation.find(reservationQuery).lean();
-  // Group reservations by userId
-  const reservationsByUser = {};
-  for (const r of reservations) {
-    if (!reservationsByUser[r.userid]) reservationsByUser[r.userid] = [];
-    reservationsByUser[r.userid].push(r);
+    const filterMatch = { userid: { $in: allMemberIds }, status: 'sold' };
+    if (startDate) filterMatch.sellDate = { $gte: startDate };
+    if (endDate) filterMatch.sellDate = { ...(filterMatch.sellDate || {}), $lte: endDate };
+    const filteredGrouped = await Reservation.aggregate([
+      { $match: filterMatch },
+      { $group: { _id: '$userid', totalProfit: { $sum: { $ifNull: ['$profit', 0] } } } }
+    ]);
+    filteredProfitByUser = Object.fromEntries(filteredGrouped.map(d => [d._id.toString(), d.totalProfit]));
   }
 
-  // Prepare data for each tier
+  // Prepare data for each tier (ALL data - main response)
   const tiers = { A: { members: [], tierIncome: 0 }, B: { members: [], tierIncome: 0 }, C: { members: [], tierIncome: 0 } };
   let totalIncome = 0;
 
+  // Also prepare filtered data (if dates provided)
+  const tiersFiltered = { A: { members: [], tierIncome: 0 }, B: { members: [], tierIncome: 0 }, C: { members: [], tierIncome: 0 } };
+  let totalIncomeFiltered = 0;
+
   for (const tier of tierDefs) {
     for (const member of tier.members) {
-      const memberUser = userMap[member.userid?.toString()];
+      const memberIdStr = member.userid ? member.userid.toString() : null;
+      const memberUser = userMap[memberIdStr];
       if (!memberUser) continue;
-      const resvs = reservationsByUser[member.userid] || [];
-      let income = 0;
-      for (const r of resvs) {
-        if (!r.profit) continue;
-        if (!inRange(r.sellDate)) continue;
-        income += r.profit * tier.percent;
-      }
+      
+      // Calculate ALL income (unfiltered)
+      const memberAllProfit = allProfitByUser[memberIdStr] || 0;
+      const income = memberAllProfit * tier.percent;
+      
+      // Calculate filtered income (within date range)
+      const memberFilteredProfit = filteredProfitByUser ? (filteredProfitByUser[memberIdStr] || 0) : 0;
+      const incomeFiltered = memberFilteredProfit * tier.percent;
+      
+      // Add to main tiers (ALL data)
       tiers[tier.key].members.push({
         username: memberUser.username,
         email: maskEmail(memberUser.email),
@@ -695,6 +758,19 @@ export const getValidMembersIncome = asynchandler(async (req, res) => {
       });
       tiers[tier.key].tierIncome += income;
       totalIncome += income;
+      
+      // Add to filtered tiers (if dates provided)
+      if (startDate || endDate) {
+        tiersFiltered[tier.key].members.push({
+          username: memberUser.username,
+          email: maskEmail(memberUser.email),
+          dateTime: formatDateTime(memberUser.createdAt),
+          income: incomeFiltered,
+          amount: memberUser.amount ? Number(memberUser.amount).toFixed(2) : "0.00"
+        });
+        tiersFiltered[tier.key].tierIncome += incomeFiltered;
+        totalIncomeFiltered += incomeFiltered;
+      }
     }
   }
 
@@ -702,13 +778,26 @@ export const getValidMembersIncome = asynchandler(async (req, res) => {
   const referralBonuses = await History.find({ userid: user._id, type: 'referral_bonus' });
   const referralBonusTotal = referralBonuses.reduce((sum, r) => sum + (r.amount || 0), 0);
 
-  return res.status(200).json(new apiresponse(200, {
+  const response = {
+    // Main data (ALL - unfiltered)
     A: tiers.A,
     B: tiers.B,
     C: tiers.C,
     totalIncome,
-    referralBonus: referralBonusTotal // Optional: expose separately
-  }, "Valid members and income by tier retrieved successfully"));
+    referralBonus: referralBonusTotal
+  };
+
+  // Add filtered data if dates were provided
+  if (startDate || endDate) {
+    response.filtered = {
+      A: tiersFiltered.A,
+      B: tiersFiltered.B,
+      C: tiersFiltered.C,
+      totalIncome: totalIncomeFiltered
+    };
+  }
+
+  return res.status(200).json(new apiresponse(200, response, "Valid members and income by tier retrieved successfully"));
 });
 
 export const getUserFullHistory = asynchandler(async (req, res) => {

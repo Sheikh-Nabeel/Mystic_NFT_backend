@@ -40,4 +40,7 @@ profit: Number
  
 },{
     timestamps:true})
+
+// Optimize common queries used in reports
+reservationschema.index({ userid: 1, status: 1, sellDate: 1 });
 export const Reservation = mongoose.model("Reservation", reservationschema);
