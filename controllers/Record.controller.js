@@ -564,9 +564,15 @@ export const getUserEarningSummary = asynchandler(async (req, res) => {
     return { today, total };
   }
 
-  const a = sumProfits(aResvs, 0.13);
-  const b = sumProfits(bResvs, 0.08);
-  const c = sumProfits(cResvs, 0.06);
+  // Team income only counts from level 2+
+  let a = { today: 0, total: 0 };
+  let b = { today: 0, total: 0 };
+  let c = { today: 0, total: 0 };
+  if (user.level >= 2) {
+    a = sumProfits(aResvs, 0.13);
+    b = sumProfits(bResvs, 0.08);
+    c = sumProfits(cResvs, 0.06);
+  }
 
   const rewards = await Reward.find({ userid: user._id });
   const referralBonuses = await History.find({ userid: user._id, type: 'referral_bonus' });
@@ -692,10 +698,11 @@ export const getValidMembersIncome = asynchandler(async (req, res) => {
   }
 
   // Collect all valid member IDs for all tiers
+  const eligible = user.level >= 2;
   const tierDefs = [
-    { key: 'A', members: (user.team_A_members || []).filter(m => m.validmember), percent: 0.13 },
-    { key: 'B', members: (user.team_B_members || []).filter(m => m.validmember), percent: 0.08 },
-    { key: 'C', members: (user.team_C_members || []).filter(m => m.validmember), percent: 0.06 },
+    { key: 'A', members: (user.team_A_members || []).filter(m => m.validmember), percent: eligible ? 0.13 : 0 },
+    { key: 'B', members: (user.team_B_members || []).filter(m => m.validmember), percent: eligible ? 0.08 : 0 },
+    { key: 'C', members: (user.team_C_members || []).filter(m => m.validmember), percent: eligible ? 0.06 : 0 },
   ];
   const allMemberIds = tierDefs.flatMap(t => t.members.map(m => m.userid));
 
@@ -997,9 +1004,13 @@ export const getUserEarningDebug = asynchandler(async (req, res) => {
     }
     return total;
   }
-  const a = sumProfits(aResvs, 0.13);
-  const b = sumProfits(bResvs, 0.08);
-  const c = sumProfits(cResvs, 0.06);
+  // Gate team income by level
+  let a = 0, b = 0, c = 0;
+  if (user.level >= 2) {
+    a = sumProfits(aResvs, 0.13);
+    b = sumProfits(bResvs, 0.08);
+    c = sumProfits(cResvs, 0.06);
+  }
   // Rewards and referral bonuses
   const rewards = await Reward.find({ userid: user._id });
   const referralBonuses = await History.find({ userid: user._id, type: 'referral_bonus' });
@@ -1091,9 +1102,13 @@ export async function syncUserAccountAmount(userId) {
     }
     return total;
   }
-  const a = sumProfits(aResvs, 0.13);
-  const b = sumProfits(bResvs, 0.08);
-  const c = sumProfits(cResvs, 0.06);
+  // Gate team income by level
+  let a = 0, b = 0, c = 0;
+  if (user.level >= 2) {
+    a = sumProfits(aResvs, 0.13);
+    b = sumProfits(bResvs, 0.08);
+    c = sumProfits(cResvs, 0.06);
+  }
   
   // Total calculated earnings
   const totalCalculated = depositTotal + registrationBonusTotal + activityTotal + totalNFTProfit + totalStakingProfit + totalNFTSellingProfit + a + b + c;
